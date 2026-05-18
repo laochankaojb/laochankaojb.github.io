@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>自我分裂彈跳圓圈（上限128）</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #222; }
+    #canvas { display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    const radius = 50;
+    const text = "lao\nchan\nkao";
+    const MAX_CIRCLES = 128;
+    let circles = [
+      {
+        x: canvas.width / 2, 
+        y: canvas.height / 2,
+        vx: 3, 
+        vy: 2, 
+        color: randomColor()
+      }
+    ];
+
+    function randomColor() {
+      return `hsl(${Math.random() * 360}, 80%, 60%)`;
+    }
+
+    function drawMultilineText(text, cx, cy, fontSize, fontFamily, color, lineHeight = 1.2) {
+      const lines = text.split('\n');
+      ctx.font = `bold ${fontSize} ${fontFamily}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = color;
+      const pxFontSize = parseInt(fontSize, 10);
+      for (let i = 0; i < lines.length; i++) {
+        let yOffset = (i - (lines.length - 1) / 2) * pxFontSize * lineHeight;
+        ctx.fillText(lines[i], cx, cy + yOffset);
+      }
+    }
+
+    function drawCircles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const c of circles) {
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, radius, 0, 2 * Math.PI);
+        ctx.fillStyle = c.color;
+        ctx.fill();
+        drawMultilineText(text, c.x, c.y, '24px', 'sans-serif', '#fff', 1.25);
+      }
+    }
+
+    function updateCircles() {
+      const newCircles = [];
+      for (const c of circles) {
+        c.x += c.vx;
+        c.y += c.vy;
+        let bounced = false;
+
+        if (c.x - radius <= 0) {
+          c.x = radius;
+          c.vx = -c.vx;
+          bounced = true;
+        }
+        if (c.x + radius >= canvas.width) {
+          c.x = canvas.width - radius;
+          c.vx = -c.vx;
+          bounced = true;
+        }
+        if (c.y - radius <= 0) {
+          c.y = radius;
+          c.vy = -c.vy;
+          bounced = true;
+        }
+        if (c.y + radius >= canvas.height) {
+          c.y = canvas.height - radius;
+          c.vy = -c.vy;
+          bounced = true;
+        }
+
+        if (bounced && circles.length + newCircles.length < MAX_CIRCLES) {
+          c.color = randomColor();
+          const angle = Math.random() * 2 * Math.PI;
+          let speed = 2 + Math.random() * 3;
+          let newVx = Math.cos(angle) * speed;
+          let newVy = Math.sin(angle) * speed;
+          newCircles.push({
+            x: c.x,
+            y: c.y,
+            vx: newVx,
+            vy: newVy,
+            color: randomColor()
+          });
+        } else if (bounced) {
+          c.color = randomColor();
+        }
+      }
+      circles = circles.concat(newCircles);
+    }
+
+    function loop() {
+      updateCircles();
+      drawCircles();
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  </script>
+</body>
+</html>
