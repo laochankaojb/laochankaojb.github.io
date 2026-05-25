@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>超市小能手｜水果整理遊戲</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: linear-gradient(145deg, #b0d9b1 0%, #f9e0a0 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Comic Neue', 'Comic Neue', 'Comic Sans MS', 'Segoe UI Emoji', cursive, sans-serif;
+            touch-action: none;
+            padding: 10px;
+            overflow: hidden;
+        }
+
+        .game-wrapper {
+            background-color: #fff9ef;
+            border-radius: 36px;
+            box-shadow: 0 16px 28px rgba(0, 0, 0, 0.2), inset 0 1px 3px rgba(255, 255, 255, 0.8);
+            padding: 8px;
+            display: inline-block;
+        }
+
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 28px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+            cursor: grab;
+            background-color: #fff6e5;
+            width: 100%;
+            height: auto;
+            max-width: 100%;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+
+        .reset-btn {
+            display: flex;
+            justify-content: center;
+            margin-top: 8px;
+            margin-bottom: 2px;
+        }
+        .reset-btn button {
+            background: #ffcd94;
+            border: none;
+            font-size: 0.85rem;
+            font-weight: bold;
+            font-family: inherit;
+            padding: 4px 18px;
+            border-radius: 40px;
+            color: #8b5a2b;
+            box-shadow: 0 3px 0 #b97f2e;
+            cursor: pointer;
+            transition: 0.07s linear;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .reset-btn button:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #b97f2e;
+        }
+        .reset-btn.hidden {
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+<div>
+    <div class="game-wrapper">
+        <div class="canvas-container">
+            <canvas id="gameCanvas" width="720" height="580" style="width:100%; height:auto; max-width:720px; aspect-ratio:720/580"></canvas>
+        </div>
+        <div class="reset-btn hidden" id="resetBtnContainer">
+            <button id="resetGameBtn">🧸 再玩一次 🧸</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ---------- 畫布與配置 (再次縮小) ----------
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const CANVAS_W = 720;
+        const CANVAS_H = 580;
+        canvas.width = CANVAS_W;
+        canvas.height = CANVAS_H;
+
+        // 水果類型 & 數量
+        const FRUIT_TYPES = {
+            apple: { name: '蘋果', emoji: '🍎', count: 8 },
+            peach: { name: '水蜜桃', emoji: '🍑', count: 5 },
+            strawberry: { name: '草莓', emoji: '🍓', count: 5 },
+            pineapple: { name: '菠蘿', emoji: '🍍', count: 3 }
+        };
+
+        // 貨櫃區域: 3x3 格子 (繼續按比例縮小)
+        const GRID_ROWS = 3;
+        const GRID_COLS = 3;
+        const GRID_W = 54;
+        const GRID_H = 54;
+        const GRID_GAP = 4;
+        const GROUP_WIDTH = GRID_W * 3 + GRID_GAP * 2; // 170
+        
+        // 動態計算起始位置，確保四組完整顯示
+        const totalGroupsWidth = GROUP_WIDTH * 4;
+        const totalGapSpace = (CANVAS_W - totalGroupsWidth) / 5;
+        const START_BASE = totalGapSpace;
+        const GROUP_SPACE = totalGapSpace;
+        
+        const GRID_START_Y = 380;  // 上移以適應縮小後的畫布高度
+        
+        const REGIONS = [
+            { type: 'apple',    label: '蘋果', startX: START_BASE, startY: GRID_START_Y, rows: GRID_ROWS, cols: GRID_COLS },
+            { type: 'peach',    label: '水蜜桃', startX: START_BASE + GROUP_WIDTH + GROUP_SPACE, startY: GRID_START_Y, rows: GRID_ROWS, cols: GRID_COLS },
+            { type: 'strawberry',label: '草莓', startX: START_BASE + (GROUP_WIDTH + GROUP_SPACE)*2, startY: GRID_START_Y, rows: GRID_ROWS, cols: GRID_COLS },
+            { type: 'pineapple',label: '菠蘿', startX: START_BASE + (GROUP_WIDTH + GROUP_SPACE)*3, startY: GRID_START_Y, rows: GRID_ROWS, cols: GRID_COLS }
+        ];
+        
+        let regionGrids = [];
+        let fruitsList = [];
+        let nextFruitId = 1;
+        let draggedFruit = null;
+        let dragOffsetX = 0, dragOffsetY = 0;
+        let errorBlink = null;
+        let blinkEndTime = 0;
+        let borderRedBlinkEndTime = 0;
+        let gameState = 'start';
+        
+        let confettiParticles = [];
+        let confettiAnimationId = null;
+        let audioCtx = null;
+        let audioEnabled = false;
+        
+        let conveyorScrollPos = 0;
+        const CONVEYOR_SPEED = 40;
+        
+        let startButtonRect = null;
+        const BOX_FRUITS_CYCLE = ['🍎', '🍓', '🍍', '🍑'];
+        
+        // ---------- 音效 ----------
+        function initAudio() {
+            if (audioCtx) return;
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch(e) { console.log("音頻不支持"); }
+        }
+        
+        function playCorrectSound() {
+            if (!audioCtx || !audioEnabled) return;
+            try {
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.frequency.value = 880;
+                gain.gain.value = 0.18;
+                osc.start();
+                gain.gain.exponentialRampToValueAtTime(0.00001, now+0.35);
+                osc.stop(now+0.35);
+            } catch(e) {}
+        }
+        
+        function playErrorSound() {
+            if (!audioCtx || !audioEnabled) return;
+            try {
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.frequency.value = 520;
+                gain.gain.value = 0.2;
+                osc.start();
+                gain.gain.exponentialRampToValueAtTime(0.00001, now+0.4);
+                osc.stop(now+0.4);
+            } catch(e) {}
+        }
+        
+        function enableAudioOnInteraction() {
+            if (audioCtx && !audioEnabled) {
+                audioCtx.resume().then(() => { audioEnabled = true; }).catch(e=>console.log);
+            } else if (!audioCtx) {
+                initAudio();
+                if(audioCtx) audioCtx.resume().then(()=>{ audioEnabled = true; });
+            } else {
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                audioEnabled = true;
+            }
+        }
+        
+        function initRegions() {
+            regionGrids = [];
+            for(let i=0; i<REGIONS.length; i++) {
+                const grid = Array(GRID_ROWS).fill().map(() => Array(GRID_COLS).fill(null));
+                regionGrids.push(grid);
+            }
+        }
+        
+        function getFirstEmptyGrid(regionIdx) {
+            const grid = regionGrids[regionIdx];
+            for(let row=0; row<GRID_ROWS; row++) {
+                for(let col=0; col<GRID_COLS; col++) {
+                    if(grid[row][col] === null) return { row, col };
+                }
+            }
+            return null;
+        }
+        
+        function isValidPlacement(regionIdx, targetRow, targetCol, fruitType) {
+            const region = REGIONS[regionIdx];
+            if (region.type !== fruitType) return false;
+            const grid = regionGrids[regionIdx];
+            if (grid[targetRow][targetCol] !== null) return false;
+            const first = getFirstEmptyGrid(regionIdx);
+            if (!first) return false;
+            return (first.row === targetRow && first.col === targetCol);
+        }
+        
+        function placeFruitToGrid(fruit, regionIdx, row, col) {
+            const region = REGIONS[regionIdx];
+            if (region.type !== fruit.type) return false;
+            const grid = regionGrids[regionIdx];
+            if (grid[row][col] !== null) return false;
+            const firstEmpty = getFirstEmptyGrid(regionIdx);
+            if (!firstEmpty || firstEmpty.row !== row || firstEmpty.col !== col) return false;
+            
+            grid[row][col] = fruit.type;
+            const idx = fruitsList.findIndex(f => f.id === fruit.id);
+            if (idx !== -1) fruitsList.splice(idx, 1);
+            playCorrectSound();
+            
+            if (fruitsList.length === 0 && gameState === 'playing') {
+                completeGame();
+            }
+            return true;
+        }
+        
+        function handleWrongPlacement(fruit, targetRegionIdx, targetRow, targetCol) {
+            if (targetRegionIdx !== undefined && targetRow !== undefined && targetCol !== undefined) {
+                errorBlink = { regionIdx: targetRegionIdx, row: targetRow, col: targetCol };
+                blinkEndTime = Date.now() + 400;
+            }
+            borderRedBlinkEndTime = Date.now() + 400;
+            playErrorSound();
+            if (fruit) fruit.resetToConveyor();
+            if (fruit && !fruitsList.includes(fruit)) fruitsList.push(fruit);
+        }
+        
+        function getGridFromPosition(x, y) {
+            for(let ri=0; ri<REGIONS.length; ri++) {
+                const reg = REGIONS[ri];
+                const startX = reg.startX;
+                const startY = reg.startY;
+                for(let row=0; row<GRID_ROWS; row++) {
+                    for(let col=0; col<GRID_COLS; col++) {
+                        const left = startX + col * (GRID_W + GRID_GAP);
+                        const top = startY + row * (GRID_H + GRID_GAP);
+                        const right = left + GRID_W;
+                        const bottom = top + GRID_H;
+                        if (x >= left && x <= right && y >= top && y <= bottom) {
+                            return { regionIdx: ri, row, col };
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+        
+        function isHitStartButton(x, y) {
+            if (!startButtonRect) return false;
+            return (x >= startButtonRect.x && x <= startButtonRect.x + startButtonRect.w &&
+                    y >= startButtonRect.y && y <= startButtonRect.y + startButtonRect.h);
+        }
+        
+        // 水果類 (按比例縮小水果大小)
+        class Fruit {
+            constructor(type, x, y, id, customVy = null) {
+                this.id = id;
+                this.type = type;
+                this.x = x;
+                this.y = y;
+                this.radius = 20;
+                this.vy = customVy !== null ? customVy : 38 + Math.random() * 10;
+                this.origX = x;
+                this.origY = y;
+                this.isDragging = false;
+            }
+            resetToConveyor() {
+                this.x = this.origX;
+                this.y = this.origY;
+                this.isDragging = false;
+            }
+            update(deltaSec) {
+                if (!this.isDragging && gameState === 'playing') {
+                    this.y += this.vy * deltaSec;
+                    if (this.y - this.radius > CANVAS_H) {
+                        this.resetToConveyor();
+                    }
+                    if (this.y + this.radius < 0) this.y = this.origY;
+                }
+            }
+            draw() {
+                const conf = FRUIT_TYPES[this.type];
+                if (!conf) return;
+                ctx.save();
+                if (this.isDragging) {
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = "rgba(0,0,0,0.3)";
+                } else {
+                    ctx.shadowBlur = 3;
+                    ctx.shadowColor = "rgba(0,0,0,0.15)";
+                }
+                ctx.font = `34px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(conf.emoji, this.x, this.y);
+                ctx.restore();
+            }
+        }
+        
+        function generateAllFruits() {
+            const conveyorBaseY = 64;
+            const rangeX = [65, CANVAS_W - 65];
+            const fruitList = [];
+            for(let i=0; i<FRUIT_TYPES.apple.count; i++) fruitList.push('apple');
+            for(let i=0; i<FRUIT_TYPES.peach.count; i++) fruitList.push('peach');
+            for(let i=0; i<FRUIT_TYPES.strawberry.count; i++) fruitList.push('strawberry');
+            for(let i=0; i<FRUIT_TYPES.pineapple.count; i++) fruitList.push('pineapple');
+            
+            for (let i = fruitList.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [fruitList[i], fruitList[j]] = [fruitList[j], fruitList[i]];
+            }
+            
+            const fruits = [];
+            for(let idx = 0; idx < fruitList.length; idx++) {
+                const type = fruitList[idx];
+                let randX = Math.random() * (rangeX[1]-rangeX[0]) + rangeX[0];
+                const yOffset = Math.random() * 22 - 6;
+                let startY = conveyorBaseY + yOffset;
+                startY = Math.min(88, Math.max(56, startY));
+                const customSpeed = 32 + Math.random() * 16;
+                let f = new Fruit(type, randX, startY, nextFruitId++, customSpeed);
+                f.origX = randX;
+                f.origY = startY;
+                fruits.push(f);
+            }
+            return fruits;
+        }
+        
+        function completeGame() {
+            if (gameState !== 'playing') return;
+            gameState = 'completed';
+            if (draggedFruit) {
+                draggedFruit.isDragging = false;
+                draggedFruit = null;
+            }
+            confettiParticles = [];
+            for(let i=0; i<160; i++) {
+                confettiParticles.push({
+                    x: Math.random() * CANVAS_W,
+                    y: Math.random() * CANVAS_H * 0.6,
+                    vx: (Math.random() - 0.5) * 3.2,
+                    vy: Math.random() * 2.2 + 1.0,
+                    size: Math.random() * 6 + 4,
+                    color: `hsl(${Math.random() * 360}, 85%, 65%)`,
+                    life: 1.0,
+                    rotation: Math.random() * Math.PI * 2
+                });
+            }
+            if (confettiAnimationId) cancelAnimationFrame(confettiAnimationId);
+            function updateConfettiLoop() {
+                if (gameState !== 'completed') return;
+                let anyAlive = false;
+                for (let i=0; i<confettiParticles.length; i++) {
+                    const p = confettiParticles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.08;
+                    p.life -= 0.006;
+                    p.rotation += 0.05;
+                    if (p.y > CANVAS_H + 80 || p.x < -60 || p.x > CANVAS_W+60 || p.life <= 0) {
+                        p.x = Math.random() * CANVAS_W;
+                        p.y = -20;
+                        p.vx = (Math.random() - 0.5) * 2.2;
+                        p.vy = Math.random() * 2 + 1.5;
+                        p.life = 1.0;
+                        p.color = `hsl(${Math.random() * 360}, 85%, 68%)`;
+                        p.size = Math.random() * 6 + 4;
+                    }
+                    anyAlive = true;
+                }
+                if (anyAlive && gameState === 'completed') {
+                    confettiAnimationId = requestAnimationFrame(updateConfettiLoop);
+                } else {
+                    confettiAnimationId = null;
+                }
+            }
+            if (confettiAnimationId) cancelAnimationFrame(confettiAnimationId);
+            confettiAnimationId = requestAnimationFrame(updateConfettiLoop);
+            
+            const resetContainer = document.getElementById('resetBtnContainer');
+            if (resetContainer) resetContainer.classList.remove('hidden');
+        }
+        
+        function drawConfetti() {
+            if (gameState !== 'completed') return;
+            for (const p of confettiParticles) {
+                ctx.save();
+                ctx.globalAlpha = p.life * 0.85;
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation);
+                ctx.fillStyle = p.color;
+                ctx.fillRect(-p.size*0.5, -p.size*0.3, p.size, p.size*0.6);
+                ctx.fillStyle = `hsl(${p.color.match(/\d+/)?.[0] || 50}, 85%, 55%)`;
+                ctx.fillRect(-p.size*0.3, -p.size*0.5, p.size*0.5, p.size);
+                ctx.restore();
+            }
+        }
+        
+        function drawCompletionOverlay() {
+            if (gameState !== 'completed') return;
+            ctx.fillStyle = 'rgba(255, 248, 225, 0.94)';
+            ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 32px "Comic Neue", "Comic Sans MS", cursive';
+            ctx.fillStyle = '#e58e1c';
+            ctx.fillText("✨ 已完成整理 ✨", CANVAS_W/2-130, CANVAS_H/2-45);
+            ctx.font = 'bold 42px "Comic Neue", cursive';
+            ctx.fillStyle = '#c97e2a';
+            ctx.fillText("太棒了！", CANVAS_W/2-70, CANVAS_H/2+15);
+            ctx.font = '20px "Comic Neue", cursive';
+            ctx.fillStyle = '#a5682c';
+            ctx.fillText("所有水果都回到自己的小家啦 🎉", CANVAS_W/2-145, CANVAS_H/2+80);
+            ctx.font = '28px "Segoe UI Emoji"';
+            ctx.fillStyle = '#ffbc6e';
+            ctx.fillText("⭐⭐⭐", CANVAS_W/2-45, CANVAS_H/2+130);
+            drawConfetti();
+        }
+        
+        function drawStartScreen() {
+            ctx.fillStyle = 'rgba(255, 245, 220, 0.96)';
+            ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+            ctx.font = 'bold 44px "Comic Neue", "Comic Sans MS", cursive';
+            ctx.fillStyle = '#d47a2e';
+            ctx.shadowBlur = 6;
+            ctx.fillText("超市小能手", CANVAS_W/2-105, CANVAS_H/2-100);
+            
+            const btnW = 200;
+            const btnH = 65;
+            const btnX = CANVAS_W/2 - btnW/2;
+            const btnY = CANVAS_H/2 - 15;
+            startButtonRect = { x: btnX, y: btnY, w: btnW, h: btnH };
+            
+            ctx.fillStyle = '#ffcd94';
+            ctx.beginPath();
+            ctx.roundRect(btnX, btnY, btnW, btnH, 36);
+            ctx.fill();
+            ctx.fillStyle = '#8b5a2b';
+            ctx.font = 'bold 36px "Comic Neue", "Comic Sans MS", cursive';
+            ctx.fillText("開始遊戲", btnX+38, btnY+48);
+        }
+        
+        function drawConveyorBelt() {
+            ctx.fillStyle = '#bcae7a';
+            ctx.fillRect(0, 24, CANVAS_W, 48);
+            const stripeWidth = 45;
+            const stripeCount = Math.ceil(CANVAS_W / stripeWidth) + 2;
+            const startOffset = - (conveyorScrollPos % stripeWidth);
+            for(let i=0; i<stripeCount; i++) {
+                const x = startOffset + i * stripeWidth;
+                ctx.fillStyle = '#a28d5c';
+                ctx.fillRect(x, 42, 22, 8);
+            }
+            ctx.fillStyle = '#f3e2b5';
+            ctx.fillRect(0, 24, CANVAS_W, 8);
+            ctx.fillStyle = '#a0844a';
+            ctx.fillRect(0, 68, CANVAS_W, 4);
+            
+            const boxInterval = 140;
+            for(let idx = -3; idx < 12; idx++) {
+                const baseX = idx * boxInterval;
+                const x = baseX - (conveyorScrollPos % boxInterval) - 15;
+                if(x < -45 || x > CANVAS_W + 45) continue;
+                const fruitIndex = ((idx % 4) + 4) % 4;
+                const boxFruit = BOX_FRUITS_CYCLE[fruitIndex];
+                
+                ctx.fillStyle = '#c49a6c';
+                ctx.shadowBlur = 3;
+                ctx.fillRect(x, 15, 42, 34);
+                ctx.fillStyle = '#aa7a4a';
+                ctx.fillRect(x+4, 20, 34, 22);
+                ctx.fillStyle = '#e5bc8c';
+                ctx.fillRect(x+10, 44, 18, 5);
+                ctx.fillStyle = '#8b5e2e';
+                ctx.fillRect(x+16, 47, 6, 4);
+                ctx.font = '22px "Segoe UI Emoji"';
+                ctx.fillStyle = '#4a2a1a';
+                ctx.fillText(boxFruit, x+10, 41);
+            }
+            ctx.shadowBlur = 0;
+            ctx.font = '18px "Segoe UI Emoji"';
+            ctx.fillStyle = '#ffec99';
+            ctx.fillText("⭐", 12, 56);
+            ctx.fillText("⭐", CANVAS_W-32, 56);
+        }
+        
+        function drawGridFruit(x, y, type) {
+            const conf = FRUIT_TYPES[type];
+            if (!conf) return;
+            ctx.save();
+            ctx.font = `32px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(conf.emoji, x + GRID_W/2, y + GRID_H/2);
+            ctx.restore();
+        }
+        
+        function drawStorageGrids() {
+            for(let ri=0; ri<REGIONS.length; ri++) {
+                const reg = REGIONS[ri];
+                const startX = reg.startX;
+                const startY = reg.startY;
+                
+                ctx.font = 'bold 20px "Comic Neue", cursive';
+                ctx.fillStyle = '#8b6946';
+                ctx.fillText(reg.label, startX+8, startY-5);
+                
+                const groupWidth = GROUP_WIDTH;
+                const groupHeight = GRID_H * 3 + GRID_GAP * 2;
+                ctx.save();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = '#8B5A2B';
+                ctx.lineWidth = 2.8;
+                ctx.strokeRect(startX - 2, startY - 1, groupWidth + 5, groupHeight + 5);
+                ctx.restore();
+                
+                for(let row=0; row<GRID_ROWS; row++) {
+                    for(let col=0; col<GRID_COLS; col++) {
+                        const x = startX + col * (GRID_W + GRID_GAP);
+                        const y = startY + row * (GRID_H + GRID_GAP);
+                        let isBlink = false;
+                        if(errorBlink && errorBlink.regionIdx === ri && errorBlink.row === row && errorBlink.col === col && Date.now() < blinkEndTime) {
+                            isBlink = true;
+                        }
+                        ctx.fillStyle = isBlink ? '#ff8a7a' : '#ffebcd';
+                        ctx.fillRect(x, y, GRID_W, GRID_H);
+                        ctx.strokeStyle = '#cdae86';
+                        ctx.lineWidth = 1.5;
+                        ctx.strokeRect(x, y, GRID_W, GRID_H);
+                        ctx.fillStyle = '#fae6b3';
+                        ctx.fillRect(x+2, y+2, GRID_W-4, GRID_H-4);
+                        
+                        const fruitInCell = regionGrids[ri][row][col];
+                        if(fruitInCell) {
+                            drawGridFruit(x, y, fruitInCell);
+                        } else {
+                            ctx.fillStyle = '#e7cf9e';
+                            ctx.beginPath();
+                            ctx.arc(x+GRID_W/2, y+GRID_H/2, 6, 0, Math.PI*2);
+                            ctx.fill();
+                        }
+                    }
+                }
+            }
+        }
+        
+        function drawRemainVisual() {
+            if (gameState === 'playing' && fruitsList.length > 0) {
+                ctx.font = '16px "Comic Neue"';
+                ctx.fillStyle = '#b77e48';
+                ctx.fillText(`🍬 還有 ${fruitsList.length} 個水果要整理`, 18, 100);
+            }
+        }
+        
+        function drawBorderRedFlash() {
+            if (Date.now() < borderRedBlinkEndTime) {
+                ctx.save();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = '#ff4d4d';
+                ctx.lineWidth = 7;
+                ctx.strokeRect(4, 4, CANVAS_W - 8, CANVAS_H - 8);
+                ctx.restore();
+            }
+        }
+        
+        function draw() {
+            ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+            ctx.fillStyle = '#fff8e7';
+            ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
+            ctx.fillStyle = '#cbe5b4';
+            ctx.fillRect(0, CANVAS_H-28, CANVAS_W, 28);
+            
+            if (gameState === 'start') {
+                drawStartScreen();
+                return;
+            }
+            
+            drawConveyorBelt();
+            drawStorageGrids();
+            for(let fruit of fruitsList) {
+                if(draggedFruit !== fruit) fruit.draw();
+            }
+            if(draggedFruit) draggedFruit.draw();
+            drawRemainVisual();
+            drawBorderRedFlash();
+            
+            if (gameState === 'completed') {
+                drawCompletionOverlay();
+            }
+        }
+        
+        let lastFrameTime = 0;
+        function updateGame(deltaSec) {
+            if (gameState !== 'playing') return;
+            conveyorScrollPos += CONVEYOR_SPEED * deltaSec;
+            if (conveyorScrollPos > 1000) conveyorScrollPos -= 1000;
+            for(let fruit of fruitsList) {
+                if(draggedFruit !== fruit) fruit.update(deltaSec);
+            }
+        }
+        
+        function animationLoop(nowMs) {
+            requestAnimationFrame(animationLoop);
+            if (!lastFrameTime) {
+                lastFrameTime = nowMs;
+                return;
+            }
+            let delta = Math.min(0.033, (nowMs - lastFrameTime) / 1000);
+            if (delta <= 0) {
+                lastFrameTime = nowMs;
+                return;
+            }
+            updateGame(delta);
+            draw();
+            lastFrameTime = nowMs;
+        }
+        
+        function handleStartClick(e) {
+            if (gameState !== 'start') return;
+            const { mx, my } = getCanvasCoords(e);
+            if (isHitStartButton(mx, my)) {
+                e.preventDefault();
+                enableAudioOnInteraction();
+                gameState = 'playing';
+                canvas.removeEventListener('click', handleStartClick);
+                canvas.removeEventListener('touchstart', handleStartClick);
+            }
+        }
+        
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            let clientX, clientY;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            let canvasX = (clientX - rect.left) * scaleX;
+            let canvasY = (clientY - rect.top) * scaleY;
+            canvasX = Math.min(Math.max(0, canvasX), CANVAS_W);
+            canvasY = Math.min(Math.max(0, canvasY), CANVAS_H);
+            return { mx: canvasX, my: canvasY };
+        }
+        
+        function onPointerStart(e) {
+            if (gameState !== 'playing') return;
+            e.preventDefault();
+            enableAudioOnInteraction();
+            const { mx, my } = getCanvasCoords(e);
+            for(let i=fruitsList.length-1; i>=0; i--) {
+                const fruit = fruitsList[i];
+                const dx = mx - fruit.x, dy = my - fruit.y;
+                if (Math.hypot(dx, dy) < fruit.radius) {
+                    draggedFruit = fruit;
+                    draggedFruit.isDragging = true;
+                    dragOffsetX = fruit.x - mx;
+                    dragOffsetY = fruit.y - my;
+                    break;
+                }
+            }
+        }
+        
+        function onPointerMove(e) {
+            if (!draggedFruit || gameState !== 'playing') return;
+            e.preventDefault();
+            const { mx, my } = getCanvasCoords(e);
+            draggedFruit.x = mx + dragOffsetX;
+            draggedFruit.y = my + dragOffsetY;
+            draggedFruit.x = Math.min(Math.max(draggedFruit.x, draggedFruit.radius+5), CANVAS_W - draggedFruit.radius-5);
+            draggedFruit.y = Math.min(Math.max(draggedFruit.y, draggedFruit.radius+12), CANVAS_H - draggedFruit.radius-8);
+        }
+        
+        function onPointerEnd(e) {
+            if (!draggedFruit || gameState !== 'playing') {
+                draggedFruit = null;
+                return;
+            }
+            e.preventDefault();
+            const { mx, my } = getCanvasCoords(e);
+            const target = getGridFromPosition(mx, my);
+            let success = false;
+            if (target) {
+                const { regionIdx, row, col } = target;
+                if (isValidPlacement(regionIdx, row, col, draggedFruit.type)) {
+                    success = placeFruitToGrid(draggedFruit, regionIdx, row, col);
+                    if(!success) handleWrongPlacement(draggedFruit, regionIdx, row, col);
+                } else {
+                    handleWrongPlacement(draggedFruit, regionIdx, row, col);
+                }
+            } else {
+                handleWrongPlacement(draggedFruit);
+            }
+            if (draggedFruit) draggedFruit.isDragging = false;
+            draggedFruit = null;
+        }
+        
+        function resetGame() {
+            gameState = 'start';
+            if (confettiAnimationId) {
+                cancelAnimationFrame(confettiAnimationId);
+                confettiAnimationId = null;
+            }
+            confettiParticles = [];
+            initRegions();
+            nextFruitId = 1;
+            fruitsList = generateAllFruits();
+            draggedFruit = null;
+            errorBlink = null;
+            blinkEndTime = 0;
+            borderRedBlinkEndTime = 0;
+            conveyorScrollPos = 0;
+            
+            const resetContainer = document.getElementById('resetBtnContainer');
+            if (resetContainer) resetContainer.classList.add('hidden');
+            
+            canvas.removeEventListener('click', handleStartClick);
+            canvas.removeEventListener('touchstart', handleStartClick);
+            canvas.addEventListener('click', handleStartClick);
+            canvas.addEventListener('touchstart', handleStartClick, { passive: false });
+        }
+        
+        document.getElementById('resetGameBtn').addEventListener('click', () => {
+            resetGame();
+        });
+        
+        function bindDragEvents() {
+            canvas.addEventListener('mousedown', onPointerStart);
+            window.addEventListener('mousemove', onPointerMove);
+            window.addEventListener('mouseup', onPointerEnd);
+            canvas.addEventListener('touchstart', onPointerStart, { passive: false });
+            window.addEventListener('touchmove', onPointerMove, { passive: false });
+            window.addEventListener('touchend', onPointerEnd);
+            canvas.addEventListener('dragstart', (e) => e.preventDefault());
+        }
+        
+        function init() {
+            initAudio();
+            initRegions();
+            fruitsList = generateAllFruits();
+            bindDragEvents();
+            canvas.addEventListener('click', handleStartClick);
+            canvas.addEventListener('touchstart', handleStartClick, { passive: false });
+            requestAnimationFrame(animationLoop);
+        }
+        
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                if (w < 2 * r) r = w / 2;
+                if (h < 2 * r) r = h / 2;
+                this.moveTo(x+r, y);
+                this.lineTo(x+w-r, y);
+                this.quadraticCurveTo(x+w, y, x+w, y+r);
+                this.lineTo(x+w, y+h-r);
+                this.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+                this.lineTo(x+r, y+h);
+                this.quadraticCurveTo(x, y+h, x, y+h-r);
+                this.lineTo(x, y+r);
+                this.quadraticCurveTo(x, y, x+r, y);
+                return this;
+            };
+        }
+        
+        init();
+    })();
+</script>
+</body>
+</html>
