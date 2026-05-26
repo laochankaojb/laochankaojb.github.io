@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>文聰家中食物的數量 - 幼兒象形統計圖遊戲</title>
+    <style>
+        /* 全面禁用預設拖拽與選取，但保留自定義觸控 */
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: none;  /* 防止觸控時頁面滾動/縮放 */
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            background: linear-gradient(145deg, #c3e2fc 0%, #e2f0ff 100%);
+            font-family: 'Comic Neue', 'Comic Sans MS', 'Segoe UI', 'PingFang TC', 'Microsoft YaHei', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .game-board {
+            max-width: 1024px;
+            width: 95%;
+            max-height: 95vh;
+            background: #fffef5;
+            border-radius: 32px;
+            box-shadow: 0 15px 25px rgba(0, 0, 0, 0.15);
+            padding: 10px 12px 15px 12px;
+            transition: box-shadow 0.08s ease-out;
+            overflow-y: auto;
+        }
+        .game-board::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .game-board.global-error {
+            box-shadow: 0 0 0 6px #ff3b3b, 0 0 0 12px #ffaaaa, 0 15px 25px rgba(0, 0, 0, 0.15);
+            border-radius: 32px;
+        }
+
+        /* 拖拽克隆樣式 */
+        .drag-clone {
+            position: fixed;
+            z-index: 9999;
+            opacity: 0.8;
+            pointer-events: none;
+            transform: scale(1.05);
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+        }
+
+        /* 所有可拖拽元素共用游標 */
+        .draggable-title, .draggable-baseline, .category-drag-item, .drag-food {
+            cursor: grab;
+        }
+        .draggable-title:active, .draggable-baseline:active, .category-drag-item:active, .drag-food:active {
+            cursor: grabbing;
+        }
+        .dragging {
+            opacity: 0.5;
+        }
+        .hidden-drag {
+            display: none !important;
+        }
+
+        .draggable-title {
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #5c3e1f;
+            background: #ffe8cf;
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 30px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.05);
+            margin: 0 0 6px 0;
+            width: auto;
+        }
+
+        .draggable-baseline {
+            width: 120px;
+            height: 8px;
+            background-color: #1e1b1a;
+            border-radius: 8px;
+            margin: 5px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .draggable-sidebar {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #fff0d0;
+            border-radius: 28px;
+        }
+
+        .draggable-categories {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+        }
+
+        .category-drag-item {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff5e8;
+            border-radius: 18px;
+            padding: 4px 10px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.05);
+        }
+        .drag-icon {
+            font-size: 1.4rem;
+        }
+        .drag-name {
+            font-size: 0.6rem;
+            font-weight: bold;
+            color: #b45f2b;
+            background: white;
+            padding: 1px 5px;
+            border-radius: 20px;
+            margin-top: 2px;
+        }
+
+        .main-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        .stat-chart {
+            flex: 2;
+            min-width: 280px;
+            background: #fff9ef;
+            border-radius: 28px;
+            padding: 10px 8px 10px 8px;
+            box-shadow: 0 4px 0 #e2caa0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-columns {
+            display: flex;
+            justify-content: space-around;
+            gap: 5px;
+            align-items: flex-end;
+        }
+
+        .stat-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* 柱子上方計數器 */
+        .column-counter {
+            background: #4a90e2;
+            border-radius: 20px;
+            padding: 2px 8px;
+            min-width: 32px;
+            text-align: center;
+            font-size: 1rem;
+            font-weight: bold;
+            color: white;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .bars-area {
+            width: 100%;
+            background: #fff6e6;
+            border-radius: 16px;
+            padding: 4px 3px 3px 3px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .slots-wrapper {
+            display: flex;
+            flex-direction: column-reverse;
+            align-items: center;
+            gap: 4px;
+            min-height: 165px;
+            width: 100%;
+        }
+
+        .dotted-slot {
+            width: 45px;
+            height: 45px;
+            background: #fffcf0;
+            border: 2px dashed #ffbc6e;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .dotted-slot.filled {
+            border: 2px solid #f6a23a;
+            background: #ffe5bc;
+            box-shadow: inset 0 0 0 1px #ffd58c;
+        }
+
+        .drop-zone-green {
+            border: 2px dashed #6fcf97;
+            background-color: #eaffea;
+            border-radius: 16px;
+            transition: all 0.1s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .title-drop-zone {
+            width: 100%;
+            min-height: 48px;
+            margin-bottom: 8px;
+        }
+        .baseline-drop-zone {
+            width: 100%;
+            min-height: 26px;
+            margin: 5px 0 8px 0;
+        }
+        .categories-container {
+            display: flex;
+            gap: 5px;
+            justify-content: space-around;
+            margin-top: 5px;
+        }
+        .category-slot {
+            flex: 1;
+            min-height: 52px;
+        }
+        .category-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+        }
+        .category-icon {
+            font-size: 1.3rem;
+            display: block;
+        }
+        .category-name {
+            font-size: 0.6rem;
+            font-weight: bold;
+            color: #b45f2b;
+            background: white;
+            padding: 1px 5px;
+            border-radius: 20px;
+            margin-top: 2px;
+        }
+
+        .food-pool {
+            flex: 1;
+            min-width: 200px;
+            background: #fffdea;
+            border-radius: 32px;
+            padding: 10px 8px;
+            box-shadow: 0 4px 0 #ecdbaa;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .food-items-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+        .drag-food {
+            width: 50px;
+            height: 50px;
+            background: #ffefc0;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            box-shadow: 0 4px 0 #c79a62;
+        }
+
+        /* 再玩一次按鈕 */
+        .reset-btn {
+            background: #ffaa55;
+            border: none;
+            font-size: 1.1rem;
+            font-weight: bold;
+            padding: 6px 20px;
+            border-radius: 40px;
+            color: white;
+            cursor: pointer;
+            font-family: inherit;
+            box-shadow: 0 3px 0 #b4622a;
+            margin-top: 8px;
+            display: inline-block;
+        }
+        .reset-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #b4622a;
+        }
+
+        .great-message {
+            position: fixed;
+            top: 35%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff2b5;
+            padding: 10px 28px;
+            border-radius: 50px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #ff7b2c;
+            z-index: 3000;
+            white-space: nowrap;
+            box-shadow: 0 12px 20px rgba(0,0,0,0.2);
+            border: 3px solid #ffcf6e;
+            pointer-events: none;
+            animation: bouncePop 0.45s ease-out;
+        }
+
+        @keyframes bouncePop {
+            0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
+            70% { transform: translate(-50%, -50%) scale(1.1); }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        .confetti-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2000;
+        }
+
+        @media (max-width: 900px) and (orientation: portrait) {
+            .game-board { width: 98%; padding: 8px 10px 12px; }
+            .dotted-slot { width: 42px; height: 42px; }
+            .drag-food { width: 48px; height: 48px; font-size: 1.6rem; }
+            .slots-wrapper { min-height: 150px; gap: 3px; }
+            .draggable-title { font-size: 1.1rem; padding: 4px 10px; }
+            .category-drag-item { padding: 3px 8px; }
+            .drag-icon { font-size: 1.3rem; }
+            .title-drop-zone { min-height: 46px; }
+            .category-slot { min-height: 48px; }
+            .column-counter { font-size: 0.9rem; padding: 2px 6px; }
+        }
+
+        @media (max-width: 1024px) and (orientation: landscape) {
+            .game-board { width: 96%; padding: 8px 12px 12px; }
+            .slots-wrapper { min-height: 140px; }
+            .dotted-slot { width: 40px; height: 40px; }
+            .drag-food { width: 46px; height: 46px; font-size: 1.5rem; }
+            .draggable-title { font-size: 1rem; }
+            .column-counter { font-size: 0.9rem; }
+        }
+
+        @media (max-width: 780px) {
+            .main-layout { flex-direction: column; }
+            .stat-chart { order: 1; }
+            .food-pool { order: 2; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-board" id="gameBoard">
+    <div class="main-layout">
+        <div class="stat-chart" id="statChartArea">
+            <div id="titleDropZone" class="drop-zone-green title-drop-zone"></div>
+            <div id="columnsContainer"></div>
+            <div id="baselineDropZone" class="drop-zone-green baseline-drop-zone"></div>
+            <div id="categoriesContainer" class="categories-container"></div>
+        </div>
+
+        <div class="food-pool">
+            <div class="draggable-sidebar">
+                <div id="draggableTitle" class="draggable-title">文聰家中食物的數量</div>
+                <div id="draggableBaseline" class="draggable-baseline"></div>
+                <div id="draggableCategoriesArea" class="draggable-categories"></div>
+            </div>
+            <div class="food-items-container" id="foodStorage"></div>
+            <button class="reset-btn" id="resetGameBtn">✨ 再玩一次 ✨</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ----------------------------- 遊戲資料 -----------------------------
+    const CATEGORIES_RAW = [
+        { key: 'carrot', name: '紅蘿蔔', icon: '🥕', maxCount: 4 },
+        { key: 'corn',   name: '玉米',   icon: '🌽', maxCount: 4 },
+        { key: 'egg',    name: '雞蛋',   icon: '🥚', maxCount: 1 },
+        { key: 'can',    name: '罐頭',   icon: '🥫', maxCount: 6 }
+    ];
+    const SLOTS_PER_COLUMN = 6;
+
+    let titlePlaced = false;
+    let baselinePlaced = false;
+    let categorySlots = [null, null, null, null];
+    let usedCategories = { carrot: false, corn: false, egg: false, can: false };
+    let allFoodItems = [];
+    let slotOccupancy = {};
+    let allSlotElements = [];
+    let isCompleted = false;
+    let columnToCategory = [null, null, null, null];
+    let placedCounts = { carrot: 0, corn: 0, egg: 0, can: 0 };
+
+    // DOM 元素
+    const gameBoard = document.getElementById('gameBoard');
+    const columnsContainer = document.getElementById('columnsContainer');
+    const titleDropZone = document.getElementById('titleDropZone');
+    const baselineDropZone = document.getElementById('baselineDropZone');
+    const categoriesContainer = document.getElementById('categoriesContainer');
+    const foodStorageDiv = document.getElementById('foodStorage');
+    const draggableTitle = document.getElementById('draggableTitle');
+    const draggableBaseline = document.getElementById('draggableBaseline');
+    const draggableCategoriesArea = document.getElementById('draggableCategoriesArea');
+    const resetBtn = document.getElementById('resetGameBtn');
+
+    // 錯誤閃爍
+    let errorTimeout = null;
+    function triggerErrorFlash() {
+        if (errorTimeout) clearTimeout(errorTimeout);
+        gameBoard.classList.remove('global-error');
+        void gameBoard.offsetWidth;
+        gameBoard.classList.add('global-error');
+        errorTimeout = setTimeout(() => {
+            gameBoard.classList.remove('global-error');
+            errorTimeout = null;
+        }, 1000);
+    }
+    function clearErrorFlash() { if (errorTimeout) clearTimeout(errorTimeout); gameBoard.classList.remove('global-error'); }
+
+    // 更新柱子上方計數器
+    function updateColumnCounter(colIndex) {
+        const columnDiv = document.querySelector(`.stat-column[data-column-index="${colIndex}"]`);
+        if (columnDiv) {
+            const counter = columnDiv.querySelector('.column-counter');
+            if (counter) {
+                const category = columnToCategory[colIndex];
+                counter.innerText = category ? placedCounts[category] : '0';
+            }
+        }
+    }
+
+    function incrementPlacedCount(categoryKey, colIndex) {
+        placedCounts[categoryKey]++;
+        updateColumnCounter(colIndex);
+    }
+
+    function resetCounters() {
+        placedCounts = { carrot: 0, corn: 0, egg: 0, can: 0 };
+        for (let i = 0; i < 4; i++) updateColumnCounter(i);
+    }
+
+    // 建立上方柱狀統計區 (含計數器)
+    function buildUpperColumns() {
+        columnsContainer.innerHTML = '';
+        allSlotElements = [];
+        CATEGORIES_RAW.forEach(cat => { slotOccupancy[cat.key] = new Array(SLOTS_PER_COLUMN).fill(false); });
+        const columnsWrapper = document.createElement('div'); columnsWrapper.className = 'chart-columns';
+        for (let i = 0; i < 4; i++) {
+            const columnDiv = document.createElement('div');
+            columnDiv.className = 'stat-column';
+            columnDiv.setAttribute('data-column-index', i);
+            const counterDiv = document.createElement('div'); counterDiv.className = 'column-counter'; counterDiv.innerText = '0';
+            columnDiv.appendChild(counterDiv);
+            const barsArea = document.createElement('div'); barsArea.className = 'bars-area';
+            const slotsWrapper = document.createElement('div'); slotsWrapper.className = 'slots-wrapper';
+            for (let j = 0; j < SLOTS_PER_COLUMN; j++) {
+                const slot = document.createElement('div'); slot.className = 'dotted-slot';
+                slot.setAttribute('data-column-index', i);
+                slot.setAttribute('data-slot-index', j);
+                slotsWrapper.appendChild(slot);
+                allSlotElements.push({ dom: slot, columnIndex: i, slotIndex: j });
+            }
+            barsArea.appendChild(slotsWrapper);
+            columnDiv.appendChild(barsArea);
+            columnsWrapper.appendChild(columnDiv);
+        }
+        columnsContainer.appendChild(columnsWrapper);
+    }
+
+    // 建立下方四個綠色承接區 (放類別名稱+圖標)
+    function buildCategorySlots() {
+        categoriesContainer.innerHTML = '';
+        categorySlots = [null, null, null, null];
+        usedCategories = { carrot: false, corn: false, egg: false, can: false };
+        columnToCategory = [null, null, null, null];
+        for (let i = 0; i < 4; i++) {
+            const slotDiv = document.createElement('div');
+            slotDiv.className = 'drop-zone-green category-slot';
+            slotDiv.setAttribute('data-slot-index', i);
+            slotDiv.setAttribute('data-filled', 'false');
+            categoriesContainer.appendChild(slotDiv);
+        }
+    }
+
+    // 右側可拖拽的類別元件
+    function createDraggableCategoryItems() {
+        draggableCategoriesArea.innerHTML = '';
+        CATEGORIES_RAW.forEach(cat => {
+            if (usedCategories[cat.key]) return;
+            const dragItem = document.createElement('div');
+            dragItem.className = 'category-drag-item';
+            dragItem.setAttribute('data-category-key', cat.key);
+            dragItem.innerHTML = `<div class="drag-icon">${cat.icon}</div><div class="drag-name">${cat.name}</div>`;
+            draggableCategoriesArea.appendChild(dragItem);
+        });
+    }
+
+    function updateCategoryDragVisibility() { createDraggableCategoryItems(); }
+
+    // 更新柱子與下方類別的映射
+    function updateColumnMapping() {
+        if (categorySlots.every(slot => slot !== null)) {
+            for (let i = 0; i < 4; i++) columnToCategory[i] = categorySlots[i];
+            for (let i = 0; i < 4; i++) updateColumnCounter(i);
+        } else {
+            columnToCategory = [null, null, null, null];
+            for (let i = 0; i < 4; i++) updateColumnCounter(i);
+        }
+    }
+
+    // 當下方類別順序改變時，清空所有已放置的食物
+    function clearAllPlacedFoods() {
+        allFoodItems.forEach(food => { food.inPlaced = false; });
+        CATEGORIES_RAW.forEach(cat => { slotOccupancy[cat.key] = new Array(SLOTS_PER_COLUMN).fill(false); });
+        allSlotElements.forEach(slot => {
+            slot.dom.classList.remove('filled');
+            slot.dom.innerHTML = '';
+        });
+        resetCounters();
+        renderFoodStorage();
+    }
+
+    // 產生食物實體 (每個食物獨立)
+    function generateAllFoodItems() {
+        const items = [];
+        CATEGORIES_RAW.forEach(cat => {
+            for (let i = 0; i < cat.maxCount; i++) {
+                items.push({ id: `${cat.key}_${Date.now()}_${Math.random()}_${i}`, categoryKey: cat.key, icon: cat.icon, name: cat.name, inPlaced: false });
+            }
+        });
+        for (let i = items.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [items[i], items[j]] = [items[j], items[i]]; }
+        return items;
+    }
+
+    // 渲染右側食物庫存區
+    function renderFoodStorage() {
+        foodStorageDiv.innerHTML = '';
+        const unplaced = allFoodItems.filter(f => !f.inPlaced);
+        unplaced.forEach(food => {
+            const dragDiv = document.createElement('div'); dragDiv.className = 'drag-food';
+            dragDiv.setAttribute('data-food-id', food.id); dragDiv.setAttribute('data-category', food.categoryKey);
+            dragDiv.innerHTML = `<div style="font-size:1.6rem;">${food.icon}</div>`;
+            foodStorageDiv.appendChild(dragDiv);
+        });
+    }
+
+    // ----------------------------- 統一拖拽模組 (支援滑鼠與觸控) -----------------------------
+    let dragActive = false;
+    let dragElement = null;
+    let dragClone = null;
+    let dragType = null;      // 'title', 'baseline', 'category', 'food'
+    let dragData = null;
+    let startX = 0, startY = 0;
+
+    function getDragTypeFromElement(el) {
+        if (el.id === 'draggableTitle') return 'title';
+        if (el.id === 'draggableBaseline') return 'baseline';
+        if (el.classList.contains('category-drag-item')) return 'category';
+        if (el.classList.contains('drag-food')) return 'food';
+        return null;
+    }
+
+    function onDragStart(e) {
+        if (dragActive) return;
+        // 取得實際拖拽元素
+        let target = e.target;
+        while (target && !target.classList?.contains('draggable-title') && !target.classList?.contains('draggable-baseline') && !target.classList?.contains('category-drag-item') && !target.classList?.contains('drag-food')) {
+            target = target.parentElement;
+        }
+        if (!target) return;
+
+        // 檢查是否可拖拽
+        if (target.id === 'draggableTitle' && titlePlaced) return;
+        if (target.id === 'draggableBaseline' && baselinePlaced) return;
+        if (target.classList.contains('category-drag-item') && usedCategories[target.getAttribute('data-category-key')]) return;
+        if (target.classList.contains('drag-food')) {
+            const foodId = target.getAttribute('data-food-id');
+            const food = allFoodItems.find(f => f.id === foodId);
+            if (food && food.inPlaced) return;
+        }
+
+        e.preventDefault();
+        dragActive = true;
+        dragElement = target;
+        dragType = getDragTypeFromElement(target);
+
+        // 準備數據
+        if (dragType === 'title') {
+            dragData = { type: 'title', content: '文聰家中食物的數量' };
+        } else if (dragType === 'baseline') {
+            dragData = { type: 'baseline' };
+        } else if (dragType === 'category') {
+            const key = target.getAttribute('data-category-key');
+            const cat = CATEGORIES_RAW.find(c => c.key === key);
+            dragData = { type: 'category', categoryKey: key, icon: cat.icon, name: cat.name };
+        } else if (dragType === 'food') {
+            const foodId = target.getAttribute('data-food-id');
+            const food = allFoodItems.find(f => f.id === foodId);
+            dragData = { type: 'food', id: food.id, category: food.categoryKey };
+        }
+
+        // 建立克隆
+        const rect = target.getBoundingClientRect();
+        dragClone = target.cloneNode(true);
+        dragClone.classList.add('drag-clone');
+        dragClone.style.position = 'fixed';
+        dragClone.style.left = rect.left + 'px';
+        dragClone.style.top = rect.top + 'px';
+        dragClone.style.width = rect.width + 'px';
+        dragClone.style.height = rect.height + 'px';
+        dragClone.style.pointerEvents = 'none';
+        document.body.appendChild(dragClone);
+
+        const clientX = e.clientX ?? (e.touches ? e.touches[0].clientX : 0);
+        const clientY = e.clientY ?? (e.touches ? e.touches[0].clientY : 0);
+        startX = clientX - rect.left;
+        startY = clientY - rect.top;
+
+        target.classList.add('dragging');
+    }
+
+    function onDragMove(e) {
+        if (!dragActive || !dragClone) return;
+        e.preventDefault();
+        const clientX = e.clientX ?? (e.touches ? e.touches[0].clientX : 0);
+        const clientY = e.clientY ?? (e.touches ? e.touches[0].clientY : 0);
+        dragClone.style.left = (clientX - startX) + 'px';
+        dragClone.style.top = (clientY - startY) + 'px';
+    }
+
+    function onDragEnd(e) {
+        if (!dragActive) return;
+        e.preventDefault();
+        dragActive = false;
+        if (dragElement) dragElement.classList.remove('dragging');
+        if (dragClone) { dragClone.remove(); dragClone = null; }
+
+        // 尋找放置目標
+        let dropTarget = null;
+        const clientX = e.clientX ?? (e.changedTouches ? e.changedTouches[0].clientX : 0);
+        const clientY = e.clientY ?? (e.changedTouches ? e.changedTouches[0].clientY : 0);
+        const elemUnderCursor = document.elementsFromPoint(clientX, clientY);
+        for (let el of elemUnderCursor) {
+            if (el.classList?.contains('drop-zone-green') || el.classList?.contains('dotted-slot')) {
+                dropTarget = el;
+                break;
+            }
+        }
+
+        let success = false;
+        if (dropTarget) {
+            if (dropTarget.classList.contains('title-drop-zone') && dragType === 'title' && !titlePlaced) {
+                titleDropZone.innerHTML = `<div style="font-size:1.1rem; font-weight:bold; color:#5c3e1f; text-align:center;">${dragData.content}</div>`;
+                titlePlaced = true;
+                dragElement.classList.add('hidden-drag');
+                success = true;
+                clearErrorFlash();
+            }
+            else if (dropTarget.classList.contains('baseline-drop-zone') && dragType === 'baseline' && !baselinePlaced && titlePlaced) {
+                baselineDropZone.innerHTML = `<div style="width:100%; height:6px; background-color:#1e1b1a; border-radius:6px;"></div>`;
+                baselinePlaced = true;
+                dragElement.classList.add('hidden-drag');
+                success = true;
+                clearErrorFlash();
+            }
+            else if (dropTarget.classList.contains('category-slot') && dragType === 'category') {
+                const idx = parseInt(dropTarget.getAttribute('data-slot-index'));
+                if (categorySlots[idx] === null && !usedCategories[dragData.categoryKey] && titlePlaced && baselinePlaced) {
+                    dropTarget.innerHTML = `<div class="category-content"><div class="category-icon">${dragData.icon}</div><div class="category-name">${dragData.name}</div></div>`;
+                    dropTarget.setAttribute('data-filled', 'true');
+                    categorySlots[idx] = dragData.categoryKey;
+                    usedCategories[dragData.categoryKey] = true;
+                    updateColumnMapping();
+                    updateCategoryDragVisibility();
+                    clearAllPlacedFoods();  // 類別順序改變，清空所有食物
+                    success = true;
+                    clearErrorFlash();
+                } else { triggerErrorFlash(); }
+            }
+            else if (dropTarget.classList.contains('dotted-slot') && dragType === 'food') {
+                const colIndex = parseInt(dropTarget.getAttribute('data-column-index'));
+                const targetSlotIndex = parseInt(dropTarget.getAttribute('data-slot-index'));
+                const requiredCategory = columnToCategory[colIndex];
+                const food = allFoodItems.find(f => f.id === dragData.id);
+                if (food && !food.inPlaced && titlePlaced && baselinePlaced && categorySlots.every(s => s !== null) &&
+                    requiredCategory && food.categoryKey === requiredCategory &&
+                    targetSlotIndex < CATEGORIES_RAW.find(c => c.key === requiredCategory).maxCount) {
+                    const occ = slotOccupancy[requiredCategory];
+                    const firstEmpty = occ.findIndex(v => v === false);
+                    if (firstEmpty === targetSlotIndex) {
+                        occ[targetSlotIndex] = true;
+                        food.inPlaced = true;
+                        incrementPlacedCount(requiredCategory, colIndex);
+                        dropTarget.classList.add('filled');
+                        dropTarget.innerHTML = `<div style="font-size:1.6rem;">${food.icon}</div>`;
+                        if (dragElement && dragElement.remove) dragElement.remove();
+                        renderFoodStorage();
+                        success = true;
+                        clearErrorFlash();
+                    } else { triggerErrorFlash(); }
+                } else { triggerErrorFlash(); }
+            }
+            else { triggerErrorFlash(); }
+        } else { triggerErrorFlash(); }
+
+        dragElement = null;
+        dragData = null;
+        checkCompletion();
+    }
+
+    // 註冊滑鼠與觸控事件
+    function bindDragEvents() {
+        document.addEventListener('mousedown', onDragStart);
+        document.addEventListener('mousemove', onDragMove);
+        document.addEventListener('mouseup', onDragEnd);
+        document.addEventListener('touchstart', onDragStart, { passive: false });
+        document.addEventListener('touchmove', onDragMove, { passive: false });
+        document.addEventListener('touchend', onDragEnd);
+    }
+
+    // 完成檢查
+    function checkCompletion() {
+        if (isCompleted) return;
+        const allFoodPlaced = allFoodItems.every(f => f.inPlaced);
+        const allCategoriesPlaced = categorySlots.every(s => s !== null);
+        if (titlePlaced && baselinePlaced && allCategoriesPlaced && allFoodPlaced) {
+            isCompleted = true;
+            const msgDiv = document.createElement('div'); msgDiv.className = 'great-message'; msgDiv.innerText = '太棒了!'; document.body.appendChild(msgDiv);
+            let burst = 0;
+            function launch() { if (burst >= 3) return; burst++; createConfettiBurst(); if (burst < 3) setTimeout(launch, 500); }
+            launch();
+            setTimeout(() => msgDiv.remove(), 2200);
+        }
+    }
+
+    function createConfettiBurst() {
+        const canvas = document.createElement('canvas'); canvas.className = 'confetti-canvas'; document.body.appendChild(canvas);
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        const ctx = canvas.getContext('2d');
+        const particles = [], colors = ['#FFB347','#FF6B6B','#4ECDC4','#FFE66D','#FF9F4A','#B56576','#6D6875'];
+        for (let i=0;i<100;i++) particles.push({ x:Math.random()*canvas.width, y:Math.random()*canvas.height-canvas.height*0.3, size:Math.random()*6+3, color:colors[Math.floor(Math.random()*colors.length)], speedY:Math.random()*8+4, speedX:(Math.random()-0.5)*5, rotation:Math.random()*360, rotateSpeed:(Math.random()-0.5)*10 });
+        let start = performance.now(), animId;
+        function draw(now) {
+            if (now-start > 800) { cancelAnimationFrame(animId); canvas.remove(); return; }
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            particles.forEach(p => { p.y+=p.speedY; p.x+=p.speedX; p.rotation+=p.rotateSpeed;
+                ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rotation*Math.PI/180); ctx.fillStyle=p.color; ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size); ctx.restore();
+            });
+            animId = requestAnimationFrame(draw);
+        }
+        animId = requestAnimationFrame(draw);
+        setTimeout(() => { if(animId) cancelAnimationFrame(animId); if(canvas) canvas.remove(); }, 850);
+    }
+
+    // 重置遊戲
+    function resetGame() {
+        isCompleted = false;
+        document.querySelectorAll('.great-message, .confetti-canvas').forEach(el => el.remove());
+        titlePlaced = false;
+        baselinePlaced = false;
+        categorySlots = [null, null, null, null];
+        usedCategories = { carrot: false, corn: false, egg: false, can: false };
+        columnToCategory = [null, null, null, null];
+        
+        titleDropZone.innerHTML = '';
+        baselineDropZone.innerHTML = '';
+        
+        buildUpperColumns();
+        buildCategorySlots();
+        createDraggableCategoryItems();
+        
+        allFoodItems = generateAllFoodItems();
+        renderFoodStorage();
+        
+        draggableTitle.classList.remove('hidden-drag');
+        draggableTitle.setAttribute('draggable', 'true');
+        draggableBaseline.classList.remove('hidden-drag');
+        draggableBaseline.setAttribute('draggable', 'true');
+        
+        resetCounters();
+        clearErrorFlash();
+    }
+
+    // 初始化
+    function init() {
+        buildUpperColumns();
+        buildCategorySlots();
+        createDraggableCategoryItems();
+        allFoodItems = generateAllFoodItems();
+        renderFoodStorage();
+        bindDragEvents();
+        resetCounters();
+        resetBtn.addEventListener('click', resetGame);
+    }
+    init();
+</script>
+</body>
+</html>
