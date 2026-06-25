@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>芳芳服裝店</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        body {
+            background: #fdf6e3;
+            font-family: 'Noto Sans TC', 'Heiti TC', 'Microsoft JhengHei', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            background-image: radial-gradient(circle at 20% 30%, #f9e0c0 5%, transparent 10%),
+                              radial-gradient(circle at 80% 70%, #f7d9c4 8%, transparent 12%);
+            background-size: 60px 60px;
+        }
+        .game-container {
+            width: 100%;
+            max-width: 700px;
+            background: #fff9f0;
+            border-radius: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15), inset 0 2px 8px rgba(255,255,255,0.8);
+            padding: 30px 25px 25px;
+            border: 3px solid #e6cba0;
+            position: relative;
+            overflow: hidden;
+        }
+        .shop-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .shop-name {
+            font-size: 2.2rem;
+            font-weight: bold;
+            color: #b45f2a;
+            text-shadow: 2px 2px 0 #ffe0b0;
+            letter-spacing: 4px;
+        }
+        .order-card {
+            background: #fef5e9;
+            border: 2px dashed #dbb47a;
+            border-radius: 30px;
+            padding: 25px 15px;
+            margin-bottom: 25px;
+            position: relative;
+            background-image: linear-gradient(45deg, #fae3c8 5%, transparent 10%);
+            box-shadow: 0 8px 0 #d9b382;
+        }
+        .water-damage {
+            position: absolute;
+            top: -5px;
+            left: -10px;
+            width: 110%;
+            height: 110%;
+            background: radial-gradient(circle at 30% 40%, rgba(180,210,240,0.2) 10%, transparent 30%),
+                        radial-gradient(circle at 70% 60%, rgba(160,200,230,0.25) 15%, transparent 35%);
+            pointer-events: none;
+            border-radius: 35px;
+            z-index: 0;
+        }
+        .equation {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            position: relative;
+            z-index: 2;
+        }
+        .cloth-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: rgba(255,255,240,0.9);
+            background-image: repeating-linear-gradient(45deg, #f0d9b0 0px, #f0d9b0 8px, #fdf6e3 8px, #fdf6e3 16px);
+            border-radius: 20px;
+            padding: 8px 5px;
+            min-width: 70px;
+        }
+        .cloth-icons {
+            font-size: 2.8rem;
+            line-height: 1.2;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 90px;
+        }
+        .cloth-number {
+            font-size: 2.2rem;
+            font-weight: bold;
+            color: #5d3a1a;
+            margin-top: 2px;
+        }
+        .drop-zone {
+            width: 65px;
+            height: 70px;
+            background: rgba(200,220,240,0.5);
+            border-radius: 50%;
+            border: 3px dotted #7fa9c7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.8rem;
+            color: #333;
+            position: relative;
+            backdrop-filter: blur(5px);
+            box-shadow: inset 0 2px 8px rgba(255,255,255,0.6);
+            transition: all 0.2s;
+        }
+        .drop-zone.long {
+            width: 75px;
+            height: 70px;
+            border-radius: 30px;
+        }
+        .drop-zone.highlight {
+            border: 3px solid #6b8e5a;
+            background: #e3f0da;
+            box-shadow: 0 0 15px #8bc34a;
+        }
+        .result-number {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #1e4d2b;
+            background: #ffedd5;
+            padding: 10px 20px;
+            border-radius: 30px;
+            border: 2px solid #c0a060;
+        }
+        .symbols-tray {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            margin-top: 25px;
+            padding: 15px 20px;
+            background: #faead7;
+            border-radius: 50px;
+            box-shadow: inset 0 4px 8px rgba(0,0,0,0.05);
+        }
+        .draggable-symbol {
+            width: 80px;
+            height: 80px;
+            background: #ffd59e;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            font-weight: bold;
+            color: #4b2e1a;
+            box-shadow: 0 8px 0 #c68b4a, 0 10px 15px rgba(0,0,0,0.15);
+            cursor: grab;
+            transition: transform 0.1s;
+            touch-action: none;
+            position: relative;
+        }
+        .draggable-symbol:active {
+            transform: scale(0.95);
+            box-shadow: 0 4px 0 #c68b4a, 0 6px 10px rgba(0,0,0,0.15);
+        }
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+        }
+        .btn {
+            background: #fff;
+            border: 2px solid #cba268;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #6b4226;
+            background: #fceddf;
+            box-shadow: 0 4px 0 #dbb47a;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        .btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #dbb47a;
+        }
+        .star-display {
+            text-align: center;
+            margin: 10px 0;
+            font-size: 2rem;
+            color: gold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .message {
+            text-align: center;
+            font-size: 1.3rem;
+            color: #5c3b1f;
+            min-height: 40px;
+            margin-top: 5px;
+        }
+        .hidden {
+            display: none !important;
+        }
+        .intro-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 40px;
+            z-index: 50;
+        }
+        .intro-box {
+            background: white;
+            padding: 30px;
+            border-radius: 40px;
+            text-align: center;
+            width: 85%;
+        }
+        .clone-symbol {
+            position: absolute;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0.85;
+            width: 70px;
+            height: 70px;
+            font-size: 2.8rem;
+            background: #ffd59e;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #4b2e1a;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.25);
+            will-change: transform;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container" id="gameContainer">
+        <div class="shop-header">
+            <div class="shop-name">🧵 芳芳服裝店</div>
+        </div>
+
+        <div class="order-card" id="orderCard">
+            <div class="water-damage"></div>
+            <div class="equation" id="equation"></div>
+        </div>
+
+        <div class="star-display" id="starDisplay">☆☆☆☆☆</div>
+        <div class="message" id="message">將符號拖到方框內吧！</div>
+
+        <div class="symbols-tray" id="symbolsTray">
+            <div class="draggable-symbol" data-symbol="+">＋</div>
+            <div class="draggable-symbol" data-symbol="-">－</div>
+            <div class="draggable-symbol" data-symbol="=">＝</div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn" id="hintBtn">💡 提示</button>
+            <button class="btn" id="relistenBtn">🔊 重聽</button>
+        </div>
+
+        <div class="intro-overlay hidden" id="summaryOverlay">
+            <div class="intro-box">
+                <h2 id="summaryTitle">🎉你已成功修復訂單！</h2>
+                <p style="font-size:2rem;margin:15px 0" id="summaryStars"></p>
+                <p style="font-size:1.4rem;" id="summaryMsg"></p>
+                <button class="btn" id="replayBtn" style="margin-top:15px;">再玩一次</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const questions = [
+                { left: 4, right: 1, result: 3, op: '-', cloth: '👔花襯衫', emoji: '👔' },
+                { left: 2, right: 3, result: 5, op: '+', cloth: '🧢葡式帽', emoji: '🧢' },
+                { left: 5, right: 2, result: 3, op: '-', cloth: '🧣披肩', emoji: '🧣' },
+                { left: 1, right: 4, result: 5, op: '+', cloth: '👗花裙', emoji: '👗' },
+                { left: 2, right: 2, result: 4, op: '+', cloth: '🎀絲巾', emoji: '🎀' }
+            ];
+
+            let currentQuestions = [];
+            let currentIndex = 0;
+            let totalStars = 0;
+            let starsEarned = [];
+
+            const equationDiv = document.getElementById('equation');
+            const messageDiv = document.getElementById('message');
+            const starDisplay = document.getElementById('starDisplay');
+            const hintBtn = document.getElementById('hintBtn');
+            const relistenBtn = document.getElementById('relistenBtn');
+            const symbols = document.querySelectorAll('.draggable-symbol');
+            const summaryOverlay = document.getElementById('summaryOverlay');
+            const summaryStars = document.getElementById('summaryStars');
+            const summaryMsg = document.getElementById('summaryMsg');
+            const replayBtn = document.getElementById('replayBtn');
+
+            let draggedSymbol = null;
+            let clone = null;
+
+            function initGame() {
+                currentQuestions = [...questions].sort(() => Math.random() - 0.5);
+                currentIndex = 0;
+                totalStars = 0;
+                starsEarned = new Array(currentQuestions.length).fill(false);
+                summaryOverlay.classList.add('hidden');
+                updateStarDisplay();
+                loadQuestion(0);
+            }
+
+            function loadQuestion(index) {
+                if (index >= currentQuestions.length) {
+                    endGame();
+                    return;
+                }
+                currentIndex = index;
+                const q = currentQuestions[index];
+                equationDiv.innerHTML = '';
+
+                const leftGroup = document.createElement('div');
+                leftGroup.className = 'cloth-group';
+                leftGroup.innerHTML = `<div class="cloth-icons">${q.emoji.repeat(Math.min(q.left, 6))}</div><div class="cloth-number">${q.left}</div>`;
+                leftGroup.addEventListener('click', ()=> speakCloth(q.cloth));
+
+                const opZone = document.createElement('div');
+                opZone.className = 'drop-zone';
+                opZone.dataset.type = 'op';
+                opZone.id = 'dropOp';
+
+                const rightGroup = document.createElement('div');
+                rightGroup.className = 'cloth-group';
+                rightGroup.innerHTML = `<div class="cloth-icons">${q.emoji.repeat(Math.min(q.right, 6))}</div><div class="cloth-number">${q.right}</div>`;
+                rightGroup.addEventListener('click', ()=> speakCloth(q.cloth));
+
+                const eqZone = document.createElement('div');
+                eqZone.className = 'drop-zone long';
+                eqZone.dataset.type = 'eq';
+                eqZone.id = 'dropEq';
+
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'result-number';
+                resultDiv.textContent = q.result;
+
+                equationDiv.appendChild(leftGroup);
+                equationDiv.appendChild(opZone);
+                equationDiv.appendChild(rightGroup);
+                equationDiv.appendChild(eqZone);
+                equationDiv.appendChild(resultDiv);
+
+                messageDiv.textContent = '將符號拖到方框內吧！';
+            }
+
+            function speakCloth(name) {
+                if ('speechSynthesis' in window) {
+                    const utter = new SpeechSynthesisUtterance(name);
+                    utter.lang = 'zh-HK';
+                    utter.rate = 0.9;
+                    speechSynthesis.cancel();
+                    speechSynthesis.speak(utter);
+                }
+            }
+
+            function speakCurrentQuestion() {
+                const q = currentQuestions[currentIndex];
+                if (!q) return;
+                const text = `左邊有${q.left}件${q.cloth}，右邊有${q.right}件，答案係${q.result}，應該用咩符號呢？`;
+                if ('speechSynthesis' in window) {
+                    const utter = new SpeechSynthesisUtterance(text);
+                    utter.lang = 'zh-HK';
+                    utter.rate = 0.85;
+                    speechSynthesis.cancel();
+                    speechSynthesis.speak(utter);
+                }
+            }
+
+            function showHint() {
+                const q = currentQuestions[currentIndex];
+                if (!q) return;
+                symbols.forEach(s => {
+                    if (s.dataset.symbol === q.op || s.dataset.symbol === '=') {
+                        s.style.background = '#b3d9a0';
+                        s.style.transform = 'scale(1.1)';
+                        setTimeout(() => {
+                            s.style.background = '#ffd59e';
+                            s.style.transform = 'scale(1)';
+                        }, 800);
+                    }
+                });
+                if ('speechSynthesis' in window) {
+                    const hintText = q.op === '+' ? '變多咗，要用加號' : '變少咗，要用減號';
+                    const utter = new SpeechSynthesisUtterance(hintText + '，等號放答案前面。');
+                    utter.lang = 'zh-HK';
+                    speechSynthesis.cancel();
+                    speechSynthesis.speak(utter);
+                }
+            }
+
+            function checkAnswer() {
+                const opZone = document.getElementById('dropOp');
+                const eqZone = document.getElementById('dropEq');
+                if (!opZone || !eqZone) return;
+                const opSymbol = opZone.textContent.trim();
+                const eqSymbol = eqZone.textContent.trim();
+                const q = currentQuestions[currentIndex];
+                const isOpCorrect = (opSymbol === q.op);
+                const isEqCorrect = (eqSymbol === '=');
+
+                if (isOpCorrect && isEqCorrect) {
+                    totalStars++;
+                    starsEarned[currentIndex] = true;
+                    updateStarDisplay();
+                    opZone.style.border = '3px solid #6b8e5a';
+                    eqZone.style.border = '3px solid #6b8e5a';
+                    messageDiv.textContent = '🎉 成功修復！';
+                    if ('speechSynthesis' in window) {
+                        const utter = new SpeechSynthesisUtterance('正確！好叻呀！');
+                        utter.lang = 'zh-HK';
+                        speechSynthesis.cancel();
+                        speechSynthesis.speak(utter);
+                    }
+                    setTimeout(() => {
+                        loadQuestion(currentIndex + 1);
+                    }, 2000);
+                } else {
+                    if (opZone.textContent.trim() !== '') opZone.textContent = '';
+                    if (eqZone.textContent.trim() !== '') eqZone.textContent = '';
+                    opZone.style.border = '3px dotted #7fa9c7';
+                    eqZone.style.border = '3px dotted #7fa9c7';
+                    messageDiv.textContent = '再想一想喲～';
+                    if ('speechSynthesis' in window) {
+                        const utter = new SpeechSynthesisUtterance('請再試一試');
+                        utter.lang = 'zh-HK';
+                        speechSynthesis.cancel();
+                        speechSynthesis.speak(utter);
+                    }
+                }
+            }
+
+            function updateStarDisplay() {
+                let starsHTML = '';
+                for (let i = 0; i < currentQuestions.length; i++) {
+                    starsHTML += i < totalStars ? '⭐' : '☆';
+                }
+                starDisplay.innerHTML = starsHTML || '☆☆☆☆☆';
+            }
+
+            function endGame() {
+                summaryOverlay.classList.remove('hidden');
+                summaryStars.textContent = '⭐'.repeat(totalStars) + '☆'.repeat(currentQuestions.length - totalStars);
+                summaryMsg.textContent = `你幫芳芳服裝店修復了 ${totalStars} 張訂單！`;
+                if ('speechSynthesis' in window) {
+                    const utter = new SpeechSynthesisUtterance('謝謝你幫忙！');
+                    utter.lang = 'zh-HK';
+                    speechSynthesis.speak(utter);
+                }
+            }
+
+            function getDropZoneUnderPoint(x, y) {
+                const opZone = document.getElementById('dropOp');
+                const eqZone = document.getElementById('dropEq');
+                const zones = [opZone, eqZone].filter(z => z);
+                for (let zone of zones) {
+                    const rect = zone.getBoundingClientRect();
+                    if (x >= rect.left - 10 && x <= rect.right + 10 &&
+                        y >= rect.top - 10 && y <= rect.bottom + 10) {
+                        return zone;
+                    }
+                }
+                return null;
+            }
+
+            function onDragStart(e) {
+                e.preventDefault();
+                const touch = e.touches ? e.touches[0] : e;
+                draggedSymbol = e.target.closest('.draggable-symbol');
+                if (!draggedSymbol) return;
+
+                clone = document.createElement('div');
+                clone.className = 'clone-symbol';
+                clone.textContent = draggedSymbol.textContent;
+                document.body.appendChild(clone);
+                updateClonePosition(touch.clientX, touch.clientY);
+            }
+
+            function onDragMove(e) {
+                e.preventDefault();
+                if (!clone) return;
+                const touch = e.touches ? e.touches[0] : e;
+                updateClonePosition(touch.clientX, touch.clientY);
+
+                const targetZone = getDropZoneUnderPoint(touch.clientX, touch.clientY);
+                const opZone = document.getElementById('dropOp');
+                const eqZone = document.getElementById('dropEq');
+                if (opZone) opZone.classList.remove('highlight');
+                if (eqZone) eqZone.classList.remove('highlight');
+                if (targetZone) {
+                    targetZone.classList.add('highlight');
+                }
+            }
+
+            function onDragEnd(e) {
+                e.preventDefault();
+                if (!draggedSymbol || !clone) return;
+                const touch = e.changedTouches ? e.changedTouches[0] : e;
+                const targetZone = getDropZoneUnderPoint(touch.clientX, touch.clientY);
+
+                document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('highlight'));
+
+                if (targetZone) {
+                    const symbol = draggedSymbol.dataset.symbol;
+                    targetZone.textContent = symbol;
+                    const opZone = document.getElementById('dropOp');
+                    const eqZone = document.getElementById('dropEq');
+                    if (opZone && eqZone && opZone.textContent.trim() !== '' && eqZone.textContent.trim() !== '') {
+                        checkAnswer();
+                    }
+                }
+
+                if (clone) {
+                    document.body.removeChild(clone);
+                    clone = null;
+                }
+                draggedSymbol = null;
+            }
+
+            function updateClonePosition(x, y) {
+                if (!clone) return;
+                clone.style.transform = `translate(${x - 35}px, ${y - 35}px)`;
+            }
+
+            symbols.forEach(symbol => {
+                symbol.addEventListener('touchstart', onDragStart, {passive: false});
+                symbol.addEventListener('touchmove', onDragMove, {passive: false});
+                symbol.addEventListener('touchend', onDragEnd);
+                symbol.addEventListener('mousedown', onDragStart);
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (clone) {
+                    updateClonePosition(e.clientX, e.clientY);
+                    const targetZone = getDropZoneUnderPoint(e.clientX, e.clientY);
+                    document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('highlight'));
+                    if (targetZone) targetZone.classList.add('highlight');
+                }
+            });
+            document.addEventListener('mouseup', (e) => {
+                if (clone) {
+                    onDragEnd(e);
+                }
+            });
+
+            hintBtn.addEventListener('click', showHint);
+            relistenBtn.addEventListener('click', speakCurrentQuestion);
+            replayBtn.addEventListener('click', initGame);
+
+            initGame();
+        })();
+    </script>
+</body>
+</html>
